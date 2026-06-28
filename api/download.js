@@ -268,32 +268,34 @@ module.exports = async (req, res) => {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ text: 'Method Not Allowed' });
 
-    try {
-        let { url } = req.body;
+    // Replace your old "if (url.includes('?'))" block with this:
+try {
+    let { url } = req.body;
 
-        if (!url) {
-            return res.status(400).json({ status: 'error', text: 'URL is required' });
-        }
+    if (!url) {
+        return res.status(400).json({ status: 'error', text: 'URL is required' });
+    }
 
-        // Clean query strings safely
-        if (url.includes('?')) {
-            url = url.split('?')[0];
-        }
-
-        if (!ytdl.validateURL(url)) {
-            return res.status(400).json({ status: 'error', text: 'Invalid YouTube URL format' });
-        }
-
-        // Fetch using the updated initialization method
-        const info = await ytdl.getInfo(url, { 
-            agent,
-            playerClients: ['ANDROID', 'IOS'],
-            requestOptions: {
-                headers: {
-                    'Accept-Language': 'en-US,en;q=0.9',
-                }
+    // CLEANUP LOGIC: Safely remove lists, tracking IDs (?si), but KEEP the video ID (v)
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+        const urlObj = new URL(url);
+        
+        if (urlObj.hostname.includes('youtu.be')) {
+            // For short URLs (youtu.be/ID), keep just the main path ID
+            url = `https://youtu.be/${urlObj.pathname.slice(1)}`;
+        } else {
+            // For standard URLs (youtube.com/watch?v=ID), keep ONLY the 'v' parameter
+            const videoId = urlObj.searchParams.get('v');
+            if (videoId) {
+                url = `https://www.youtube.com/watch?v=${videoId}`;
             }
-        });
+        }
+    }
+
+    // Now validation will pass cleanly!
+    if (!ytdl.validateURL(url)) {
+        return res.status(400).json({ status: 'error', text: 'Invalid YouTube URL format' });
+    }
         
         let audioFormat = info.formats.find(f => f.hasAudio && !f.hasVideo && f.container === 'm4a') 
                        || info.formats.find(f => f.hasAudio && !f.hasVideo)
