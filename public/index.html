@@ -79,8 +79,8 @@
       showStatus('Contacting serverless cluster, extracting streams, and preparing high-quality MP3 container...', 'info');
 
       try {
-        // Calling a highly reliable serverless-friendly streaming backend gateway
-        const apiUrl = `https://api.cobalt.tools/api/json`;
+        
+const apiUrl = `/api/download`; // Agar port 5000 hai to
         
         const response = await fetch(apiUrl, {
           method: 'POST',
