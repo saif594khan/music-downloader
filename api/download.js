@@ -1,6 +1,6 @@
 const ytdl = require('@distube/ytdl-core');
 
-// Aapki YouTube Cookies ka array jo aapne provide kiya hai
+// Aapki YouTube Cookies ka array (Isay waise hi rehne dein)
 const cookies = [
   {
     "domain": ".youtube.com",
@@ -256,39 +256,52 @@ const cookies = [
   }
 ];
 
-// Cookies ka use karte hue authorized agent create karna
 const agent = ytdl.createAgent(cookies);
 
 module.exports = async (req, res) => {
-    // CORS Headers setup
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
     res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-
-    if (req.method !== 'POST') {
-        return res.status(405).json({ text: 'Method Not Allowed' });
-    }
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'POST') return res.status(405).json({ text: 'Method Not Allowed' });
 
     try {
-        const { url } = req.body;
+        let { url } = req.body;
 
-        if (!url || !ytdl.validateURL(url)) {
-            return res.status(400).json({ status: 'error', text: 'Invalid YouTube URL' });
+        if (!url) {
+            return res.status(400).json({ status: 'error', text: 'URL is required' });
         }
 
-        // Agent object ko options me pass karna taake YouTube request authorize ho sake
-        const info = await ytdl.getInfo(url, { agent });
+        // URL Clean up: ?si=... jaise extra parameters saaf karna jo validation kharab karte hain
+        if (url.includes('?')) {
+            url = url.split('?')[0];
+        }
+
+        if (!ytdl.validateURL(url)) {
+            return res.status(400).json({ status: 'error', text: 'Invalid YouTube URL format' });
+        }
+
+        // FAST FETCH OPTIONS: Falsh player clients aur video formats ko request nahi bhejenge
+        // taake Vercel ka 10-second serverless timeout hit na ho.
+        const info = await ytdl.getInfo(url, { 
+            agent,
+            playerClients: ['ANDROID', 'IOS'],
+            requestOptions: {
+                headers: {
+                    'Accept-Language': 'en-US,en;q=0.9',
+                }
+            }
+        });
         
-        // Highest audio format filter karna
-        const audioFormat = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
+        // Direct format filter safely
+        let audioFormat = info.formats.find(f => f.hasAudio && !f.hasVideo && f.container === 'm4a') 
+                       || info.formats.find(f => f.hasAudio && !f.hasVideo)
+                       || info.formats.find(f => f.hasAudio);
 
         if (!audioFormat || !audioFormat.url) {
-            return res.status(404).json({ status: 'error', text: 'Audio format not found' });
+            return res.status(404).json({ status: 'error', text: 'No audio stream format found' });
         }
 
         return res.status(200).json({ 
@@ -297,6 +310,7 @@ module.exports = async (req, res) => {
         });
 
     } catch (error) {
-        return res.status(500).json({ status: 'error', text: error.message });
+        console.error("Error logging:", error.message);
+        return res.status(500).json({ status: 'error', text: error.message || 'Internal Server Error' });
     }
 };
