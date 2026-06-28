@@ -1,6 +1,7 @@
 {
   "cleanUrls": true,
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/download.js" },
     { "source": "/", "destination": "/public/index.html" }
   ]
 }
