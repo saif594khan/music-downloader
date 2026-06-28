@@ -14,19 +14,19 @@
     <!-- Header -->
     <div class="text-center mb-8">
       <h1 class="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">
-        Music Downloader
+        Media Extractor
       </h1>
-      <p class="text-sm text-slate-400 mt-2">Paste any link to download MP3 song.</p>
+      <p class="text-sm text-slate-400 mt-2">Paste a SoundCloud or YouTube link to grab your MP3 track</p>
     </div>
 
     <!-- Input Form -->
     <div class="space-y-4">
       <div>
-        <label class="block text-xs uppercase tracking-wider font-semibold text-slate-400 mb-2">Paste URL</label>
+        <label class="block text-xs uppercase tracking-wider font-semibold text-slate-400 mb-2">Media Stream URL</label>
         <input 
           type="text" 
           id="urlInput" 
-          placeholder="https://www.youtube.com/watch?..." 
+          placeholder="https://www.youtube.com/watch?... or https://on.soundcloud.com/..." 
           class="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-sm"
         />
       </div>
@@ -50,11 +50,22 @@
       const downloadBtn = document.getElementById('downloadBtn');
       const statusBox = document.getElementById('statusBox');
 
-      const targetUrl = urlInput.value.trim();
+      let targetUrl = urlInput.value.trim();
       if (!targetUrl) {
         showStatus('Please insert a valid URL link first.', 'error');
         return;
       }
+
+      // Clean up YouTube playlist bloat to protect the API
+      try {
+        const cleanUrlObj = new URL(targetUrl);
+        if (cleanUrlObj.hostname.includes('youtube.com') || cleanUrlObj.hostname.includes('youtu.be')) {
+          const videoId = cleanUrlObj.searchParams.get('v');
+          if (videoId) {
+            targetUrl = `${cleanUrlObj.origin}${cleanUrlObj.pathname}?v=${videoId}`;
+          }
+        }
+      } catch(e) {}
 
       // Update UI to loading state
       downloadBtn.disabled = true;
@@ -63,53 +74,53 @@
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
-        <span>Processing Audio & Cover Art...</span>
+        <span>Processing Audio via Cloud Fetch...</span>
       `;
-      showStatus('Extracting song. Please wait...', 'info');
+      showStatus('Contacting serverless cluster, extracting streams, and preparing high-quality MP3 container...', 'info');
 
       try {
-        const response = await fetch('/api/download', {
+        // Calling a highly reliable serverless-friendly streaming backend gateway
+        const apiUrl = `https://api.cobalt.tools/api/json`;
+        
+        const response = await fetch(apiUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: targetUrl })
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            url: targetUrl,
+            isAudioOnly: true,
+            audioFormat: 'mp3',
+            vCodec: 'h264'
+          })
         });
 
-        if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error || 'Server processing error');
+        const data = await response.json();
+
+        if (data.status === 'error') {
+          throw new Error(data.text || 'Cloud processing failed');
         }
 
-        // --- DYNAMIC NAMING ENGINE FIXED HERE ---
-        // Read the content-disposition header sent by server.js to find the real name
-        const disposition = response.headers.get('content-disposition');
-        let filename = 'track.mp3'; // safe fallback
-        
-        if (disposition && disposition.includes('filename=')) {
-          // Extract the exact official filename string inside the header
-          const matches = disposition.match(/filename="?([^";]+)"?/);
-          if (matches && matches[1]) {
-            filename = matches[1];
-          }
+        if (data.status === 'redirect' || data.url) {
+          // Trigger file download using a direct anchor click element
+          const a = document.createElement('a');
+          a.href = data.url;
+          // Target blank opens the native file delivery stream safely
+          a.target = '_blank';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          
+          showStatus(`✨ Success! Redirected to stream source. Check your downloads panel!`, 'success');
+          urlInput.value = '';
+        } else {
+          throw new Error('No streaming URL returned from serverless node.');
         }
 
-        // Catch the raw binary stream data from the server response
-        const blob = await response.blob();
-        
-        // Generate a hidden anchor tag to trigger a native browser download event
-        const downloadUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = downloadUrl;
-        a.download = filename; // Uses the track's real name automatically!
-        document.body.appendChild(a);
-        a.click(); 
-        a.remove();
-        
-        showStatus(`✨ Success! The song has been sent to your downloads folder.`, 'success');
-        urlInput.value = ''; 
       } catch (err) {
-        showStatus(err.message, 'error');
+        showStatus(`Service Error: ${err.message}`, 'error');
       } finally {
-        // Reset loading button UI
         downloadBtn.disabled = false;
         downloadBtn.innerHTML = `<span>Download Song</span>`;
       }
