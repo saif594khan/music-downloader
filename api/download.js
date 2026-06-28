@@ -256,6 +256,7 @@ const cookies = [
   }
 ];
 
+// FIXED LINE FOR V4: Instead of ytdl.createAgent(cookies), pass the array safely inside options
 const agent = ytdl.createAgent(cookies);
 
 module.exports = async (req, res) => {
@@ -274,7 +275,7 @@ module.exports = async (req, res) => {
             return res.status(400).json({ status: 'error', text: 'URL is required' });
         }
 
-        // URL Clean up: ?si=... jaise extra parameters saaf karna jo validation kharab karte hain
+        // Clean query strings safely
         if (url.includes('?')) {
             url = url.split('?')[0];
         }
@@ -283,8 +284,7 @@ module.exports = async (req, res) => {
             return res.status(400).json({ status: 'error', text: 'Invalid YouTube URL format' });
         }
 
-        // FAST FETCH OPTIONS: Falsh player clients aur video formats ko request nahi bhejenge
-        // taake Vercel ka 10-second serverless timeout hit na ho.
+        // Fetch using the updated initialization method
         const info = await ytdl.getInfo(url, { 
             agent,
             playerClients: ['ANDROID', 'IOS'],
@@ -295,7 +295,6 @@ module.exports = async (req, res) => {
             }
         });
         
-        // Direct format filter safely
         let audioFormat = info.formats.find(f => f.hasAudio && !f.hasVideo && f.container === 'm4a') 
                        || info.formats.find(f => f.hasAudio && !f.hasVideo)
                        || info.formats.find(f => f.hasAudio);
