@@ -1,0 +1,19 @@
+FROM node:18-slim
+
+# Install system dependencies (Python3 for yt-dlp, and ffmpeg)
+RUN apt-get update && apt-get install -y \
+    python3 \
+    ffmpeg \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /usr/src/app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+EXPOSE 8080
+
+CMD [ "node", "server_3.js" ]
