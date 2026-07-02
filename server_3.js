@@ -14,7 +14,10 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 8080;
 
-const ytDlpPath = path.join(__dirname, "node_modules", "youtube-dl-exec", "bin", "yt-dlp.exe");
+// FIXED: Dynamically handles Windows (.exe) path locally and Linux path on Hugging Face
+const ytDlpPath = process.platform === "win32"
+  ? path.join(__dirname, "node_modules", "youtube-dl-exec", "bin", "yt-dlp.exe")
+  : path.join(__dirname, "node_modules", "youtube-dl-exec", "bin", "yt-dlp");
 
 // Desktop browser client profile simulation data
 const REAL_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
